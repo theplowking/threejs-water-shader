@@ -1,6 +1,21 @@
 # threejs-water-shader
 
-https://gist.github.com/patriciogonzalezvivo/670c22f3966e662d2f83
-https://www.deviantart.com/dabbex30/art/Underwater-Sand-575719072
-https://matheowis.github.io/HDRI-to-CubeMap/
-https://polyhaven.com/a/kloppenheim_06_puresky
+<p align="center">
+  <img src="public/demo.png" width="640" alt="Water shader demo">
+</p>
+
+## Overview
+
+A real-time water shader demo built with Three.js that features:
+
+- Procedural wave animation using fractal noise
+- Dynamic coloring based on wave height
+- Fresnel reflection
+- Environment map reflections
+- Caustics effect
+- Interactive parameters via Tweakpane UI
+
+## Links
+
+- [Live Demo](https://dgreenheck.github.io/threejs-water-shader/)
+- [Tutorial](https://youtu.be/jK4uXGY07vA)
