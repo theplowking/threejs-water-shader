@@ -18,7 +18,7 @@ document.body.appendChild(renderer.domElement);
 // Environment map
 const cubeTextureLoader = new THREE.CubeTextureLoader();
 cubeTextureLoader.setPath('/threejs-water-shader/');
-const environmentMap = await cubeTextureLoader.loadAsync([
+const environmentMap = cubeTextureLoader.load([
   'px.png', // positive x
   'nx.png', // negative x 
   'py.png', // positive y
