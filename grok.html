@@ -1,0 +1,208 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Boat on Water</title>
+    <style>
+        body { margin: 0; overflow: hidden; }
+        canvas { display: block; }
+    </style>
+</head>
+<body>
+    <script type="importmap">
+        {
+            "imports": {
+                "three": "https://unpkg.com/three@0.160.0/build/three.module.js",
+                "cannon-es": "https://unpkg.com/cannon-es@0.20.0/dist/cannon-es.js",
+                "simplex-noise": "https://unpkg.com/simplex-noise@4.0.1/files/dist/cjs/simplex-noise.js"
+            }
+        }
+    </script>
+
+    <script type="module">
+        import * as THREE from 'three';
+        import * as CANNON from 'cannon-es';
+        import { createNoise3D } from 'simplex-noise';
+
+        // Scene setup
+        const scene = new THREE.Scene();
+        const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
+        const renderer = new THREE.WebGLRenderer();
+        renderer.setSize(window.innerWidth, window.innerHeight);
+        document.body.appendChild(renderer.domElement);
+
+        // Physics world
+        const world = new CANNON.World();
+        world.gravity.set(0, -9.82, 0);
+
+        // Water
+        const waterGeometry = new THREE.PlaneGeometry(100, 100, 32, 32);
+        const waterMaterial = new THREE.MeshPhongMaterial({
+            color: 0x0066ff,
+            side: THREE.DoubleSide,
+            shininess: 100,
+            transparent: true,
+            opacity: 0.8
+        });
+        const water = new THREE.Mesh(waterGeometry, waterMaterial);
+        water.rotation.x = -Math.PI / 2;
+        waterGeometry.computeVertexNormals();
+        scene.add(water);
+
+        // Boat
+        const boatGeometry = new THREE.BoxGeometry(2, 1, 4);
+        const boatMaterial = new THREE.MeshPhongMaterial({ color: 0x8b4513 });
+        const boatMesh = new THREE.Mesh(boatGeometry, boatMaterial);
+        scene.add(boatMesh);
+
+        const boatBody = new CANNON.Body({
+            mass: 10,
+            position: new CANNON.Vec3(0, 2, 0),
+            angularDamping: 0.8,
+            linearDamping: 0.3
+        });
+        boatBody.addShape(new CANNON.Box(new CANNON.Vec3(1, 0.5, 2)));
+        world.addBody(boatBody);
+
+        // Lighting
+        const ambientLight = new THREE.AmbientLight(0x606060, 10);
+        scene.add(ambientLight);
+        const directionalLight = new THREE.DirectionalLight(0xffffff, 1);
+        directionalLight.position.set(5, 10, 5);
+        scene.add(directionalLight);
+
+        // Camera setup
+        const cameraRadius = 20;
+        let theta = Math.PI / 2;  // Horizontal angle
+        let phi = Math.PI / 4;    // Vertical angle
+        camera.position.set(
+            cameraRadius * Math.sin(theta) * Math.cos(phi),
+            cameraRadius * Math.sin(phi),
+            cameraRadius * Math.cos(theta) * Math.cos(phi)
+        );
+        camera.lookAt(0, 0, 0);
+
+        // Mouse controls
+        let isDragging = false;
+        let previousMousePosition = { x: 0, y: 0 };
+
+        document.addEventListener('mousedown', (e) => {
+            isDragging = true;
+            previousMousePosition = { x: e.clientX, y: e.clientY };
+        });
+
+        document.addEventListener('mousemove', (e) => {
+            if (isDragging) {
+                const deltaMove = {
+                    x: e.clientX - previousMousePosition.x,
+                    y: e.clientY - previousMousePosition.y
+                };
+
+                theta -= deltaMove.x * 0.005;
+                phi -= deltaMove.y * 0.005;
+                
+                // Clamp phi to prevent flipping
+                phi = Math.max(0.1, Math.min(Math.PI - 0.1, phi));
+
+                camera.position.set(
+                    cameraRadius * Math.sin(theta) * Math.cos(phi),
+                    cameraRadius * Math.sin(phi),
+                    cameraRadius * Math.cos(theta) * Math.cos(phi)
+                );
+                camera.lookAt(0, 0, 0);
+
+                previousMousePosition = { x: e.clientX, y: e.clientY };
+            }
+        });
+
+        document.addEventListener('mouseup', () => {
+            isDragging = false;
+        });
+
+        // Keyboard controls
+        const keys = {
+            ArrowUp: false,
+            ArrowDown: false
+        };
+        document.addEventListener('keydown', (e) => keys[e.key] = true);
+        document.addEventListener('keyup', (e) => keys[e.key] = false);
+
+        // Perlin noise function
+        function noise(x, z, time) {
+            //return createNoise3D(x * 1.0, time * 0.5, z * 1.0);
+            const scale = 0.5;
+            const amplitude = 0.5;
+            return Math.sin(x * scale + time) * Math.cos(z * scale + time) * amplitude;
+        }
+
+        // Animation
+        let time = 0;
+        const clock = new THREE.Clock();
+        
+        function animate() {
+            requestAnimationFrame(animate);
+            const delta = clock.getDelta();
+            time += delta;
+
+            // Update water surface
+            const position = waterGeometry.attributes.position;
+            for (let i = 0; i < position.count; i++) {
+                const x = position.getX(i);
+                const z = position.getY(i);
+                position.setZ(i, noise(x, z, time));
+            }
+            position.needsUpdate = true;
+            waterGeometry.computeVertexNormals();
+
+            // Calculate buoyancy forces
+            const corners = [
+                new CANNON.Vec3(-1, -0.5, -2),
+                new CANNON.Vec3(1, -0.5, -2),
+                new CANNON.Vec3(-1, -0.5, 2),
+                new CANNON.Vec3(1, -0.5, 2)
+            ];
+
+            corners.forEach(corner => {
+                const worldPoint = boatBody.position.vadd(
+                    boatBody.quaternion.vmult(corner)
+                );
+                const waterHeight = noise(worldPoint.x, worldPoint.z, time);
+                const depth = waterHeight - worldPoint.y;
+                
+                if (depth > 0) {
+                    const buoyancyForce = depth * 20;
+                    const force = new CANNON.Vec3(0, buoyancyForce, 0);
+                    boatBody.applyLocalForce(force, corner);
+                }
+            });
+
+            // Apply boat movement forces
+            const forwardForce = 50;
+            if (keys.ArrowUp) {
+                boatBody.applyLocalForce(new CANNON.Vec3(0, 0, -forwardForce), new CANNON.Vec3(0, 0, 0));
+            }
+            if (keys.ArrowDown) {
+                boatBody.applyLocalForce(new CANNON.Vec3(0, 0, forwardForce), new CANNON.Vec3(0, 0, 0));
+            }
+
+            // Update physics
+            console.log(delta,world);
+            world.step(1/60, delta, 3);
+
+            // Sync Three.js mesh with physics body
+            boatMesh.position.copy(boatBody.position);
+            boatMesh.quaternion.copy(boatBody.quaternion);
+
+            renderer.render(scene, camera);
+        }
+
+        // Handle window resize
+        window.addEventListener('resize', () => {
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+        });
+
+        animate();
+    </script>
+</body>
+</html>

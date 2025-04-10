@@ -1,11 +1,19 @@
 import * as THREE from 'three';
+import * as CANNON from 'cannon-es';
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls';
 import { Water } from './objects/Water';
 import { Ground } from './objects/Ground';
 import { setupUI } from './ui';
+import { Boat } from './objects/Boat';
+
+// Physics world
+const world = new CANNON.World();
+world.gravity.set(0, -9.82, 0);
 
 // Animation
 const clock = new THREE.Clock();
+clock.start();  // Start the clock
+let lastTime = 0;  // Track last frame time
 
 // Scene setup
 const scene = new THREE.Scene();
@@ -55,13 +63,28 @@ const ground = new Ground({
 });
 scene.add(ground);
 
+// Add boat
+const boat = new Boat(water);
+scene.add(boat.mesh);
+world.addBody(boat.body);
+
 function animate() {
-  const elapsedTime = clock.getElapsedTime();
-  water.update(elapsedTime);
-  ground.update(elapsedTime);
+  requestAnimationFrame(animate);
+  
+  const currentTime = clock.getElapsedTime();
+  const delta = currentTime - lastTime;
+  lastTime = currentTime;
+
+  // Update water
+  water.update(currentTime);
+
+  // Update physics
+  world.step(1/60, delta, 3);
+  boat.update(currentTime);
+
+  ground.update(currentTime);
   controls.update();
   renderer.render(scene, camera);
-  requestAnimationFrame(animate);
 }
 
 // Handle resize
