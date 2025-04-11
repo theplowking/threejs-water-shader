@@ -64,7 +64,7 @@ export class Boat {
             const depth = waterHeight - worldPoint.y;
             
             if (depth > 0) {
-                const buoyancyForce = depth * 20;
+                const buoyancyForce = depth * 40;
                 const force = new CANNON.Vec3(0, buoyancyForce, 0);
                 this.body.applyLocalForce(force, corner);
             }
@@ -86,6 +86,20 @@ export class Boat {
         if (this.keys.ArrowRight) {
             this.body.applyTorque(new CANNON.Vec3(0, -turnForce, 0));
         }
+
+        // Apply drag forces to resist sideways movement
+        const velocity = this.body.velocity;
+        const localVel = this.body.quaternion.inverse().vmult(velocity);
+        
+        // Strong resistance to sideways (x) movement
+        const lateralDrag = -30;
+        const sideForce = new CANNON.Vec3(localVel.x * lateralDrag, 0, 0);
+        this.body.applyLocalForce(sideForce, new CANNON.Vec3(0, 0, 0));
+        
+        // Moderate resistance to forward/backward (z) movement
+        const longitudinalDrag = -5;
+        const forwardForceResistance = new CANNON.Vec3(0, 0, localVel.z * longitudinalDrag);
+        this.body.applyLocalForce(forwardForceResistance, new CANNON.Vec3(0, 0, 0));
 
         // Sync Three.js mesh with physics body
         this.mesh.position.copy(this.body.position);
